@@ -10,10 +10,12 @@
 
   boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "usb_storage" "usbhid" "sd_mod" ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" "wl" ];
+  boot.kernelModules = [ "kvm-intel" "wl" "applesmc" "coretemp" ];
   boot.extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
   boot.blacklistedKernelModules = [ "b43" "bcma" "brcmsmac" "ssb" ];
- 
+  services.mbpfan.enable = true;
+  services.auto-cpufreq.enable = true;
+    
     # FIX: bradcom_sta marked insecure
   nixpkgs.config.allowInsecurePredicate = pkg:
     builtins.elem (lib.getName pkg) [
