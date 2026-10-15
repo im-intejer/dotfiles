@@ -1,48 +1,45 @@
 {
-  description = "A home-manager template providing useful tools & settings for Nix-based development";
+  description = "Personal Nix config for NixOS, macOS (nix-darwin) and standalone Home Manager";
 
   inputs = {
-    # Principle inputs (updated by `nix run .#update`)
+    # Core
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    nixos-unified.url = "github:srid/nixos-unified";
+
+    # System and user management
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nix-darwin = {
       url = "github:LnL7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    flake-parts.url = "github:hercules-ci/flake-parts";
-
-    nixos-unified.url = "github:srid/nixos-unified";
-
-    # Software inputs
+    # Shell tooling
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    noctalia = {
-      url = "github:noctalia-dev/noctalia-shell";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
+    # Linux desktop (only used when `me.desktop.enable = true`)
     niri = {
       url = "github:sodiboo/niri-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    dms = {
+      url = "github:AvengeMedia/DankMaterialShell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    dank-greeter = {
+      url = "github:AvengeMedia/dank-greeter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  nixConfig = {
-    extra-substituters = [ "https://noctalia.cachix.org" ];
-    extra-trusted-public-keys = [
-      "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
-    ];
-  };
-
-  # Wired using https://nixos-unified.org/guide/autowiring
+  # Everything under configurations/ and modules/ is wired up automatically.
+  # See https://nixos-unified.org/guide/autowiring and the README.
   outputs =
     inputs:
     inputs.nixos-unified.lib.mkFlake {

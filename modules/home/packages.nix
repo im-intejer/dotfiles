@@ -1,46 +1,30 @@
+# Packages every user gets on every machine, with or without a desktop.
+# GUI apps belong in desktop.nix instead, so macOS and servers stay lean.
+# Search for packages at https://search.nixos.org/packages
 { pkgs, ... }:
 {
-  # Nix packages to install to $HOME
-  #
-  # Search for packages here: https://search.nixos.org/packages
   home.packages = with pkgs; [
+    # Nix tooling
     omnix
-
-    # Unix tools
-    ripgrep # Better `grep`
-    gnumake
-
-    # Nix dev
     cachix
     nil # Nix language server
     nix-info
     nixpkgs-fmt
 
-    # On ubuntu, we need this less for `man home-configuration.nix`'s pager to
-    # work.
-    less
-
+    # Unix tools
+    ripgrep # Better `grep`
+    gnumake
+    less # Needed for the `man home-configuration.nix` pager on Ubuntu
     gh
 
-    # Essentials
+    # Editor
     helix
-    firefox
-    kitty
-
-    mako
-    wl-clipboard
   ];
 
-  # Programs natively supported by home-manager.
-  # They can be configured in `programs.*` instead of using home.packages.
+  # Programs with a Home Manager module can be set up under `programs.*`.
   programs = {
-    # Better `cat`
-    bat.enable = true;
-    # Type `<ctrl> + r` to fuzzy search your shell history
-    fzf.enable = true;
-    # Install btop https://github.com/aristocratos/btop
-    btop.enable = true;
-    # Enable zsh for compat
-    zsh.enable = true;
+    bat.enable = true; # Better `cat`
+    fzf.enable = true; # Press ctrl+r to fuzzy search your shell history
+    btop.enable = true; # https://github.com/aristocratos/btop
   };
 }

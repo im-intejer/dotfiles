@@ -11,6 +11,16 @@ default:
 update:
   nix flake update
 
+# Apply the configuration of this machine (NixOS or macOS)
+[group('Main')]
+run:
+  nix run
+
+# Apply only the Home Manager config, for use as a package manager on any OS
+[group('Main')]
+home:
+  nix run .#activate -- $USER@localhost
+
 # Lint nix files
 [group('dev')]
 lint:
@@ -25,8 +35,3 @@ check:
 [group('dev')]
 dev:
   nix develop
-
-# Activate the configuration
-[group('Main')]
-run:
-  nix run

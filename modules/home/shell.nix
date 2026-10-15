@@ -1,35 +1,22 @@
+# Shells. zsh is the default on macOS, bash is kept for compatibility.
 { ... }:
 {
   programs = {
-    # on macOS, you probably don't need this
-    bash = {
-      enable = true;
-      initExtra = ''
-        # Custom bash profile goes here
-      '';
-    };
+    bash.enable = true;
 
-    # For macOS's default shell.
     zsh = {
       enable = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
       enableCompletion = true;
-      envExtra = ''
-        # Custom ~/.zshenv goes here
-      '';
-      profileExtra = ''
-        # Custom ~/.zprofile goes here
-      '';
-      loginExtra = ''
-        # Custom ~/.zlogin goes here
-      '';
-      logoutExtra = ''
-        # Custom ~/.zlogout goes here
-      '';
+      oh-my-zsh = {
+        enable = true;
+        theme = "robbyrussell";
+      };
+      # Add your own startup code with `initContent`, `envExtra` or `profileExtra`.
     };
 
-    # Type `z <pat>` to cd to some directory
-    zoxide.enable = true;      
+    # Type `z <pattern>` to jump to a directory you have visited before.
+    zoxide.enable = true;
   };
 }
