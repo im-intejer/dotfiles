@@ -1,0 +1,1408 @@
+From 9396265280cc95b18d06f99c7f0f0823b3cdc20b Mon Sep 17 00:00:00 2001
+From: Luke Davis <96660898+UPWRD1@users.noreply.github.com>
+Date: Thu, 15 Oct 2026 04:37:22 +0000
+Subject: [PATCH] Replace GNOME with niri + DankMaterialShell, add Steam,
+ support three modes
+
+Desktop
+- Remove GNOME, SDDM, the noctalia shell and unused stubs.
+- Add greetd with the DankMaterialShell greeter (dank-greeter flake).
+- Use niri from nixpkgs, configured per user through niri-flake, with
+  xwayland-satellite so X11 apps such as Steam work.
+- Add DankMaterialShell through its Home Manager module.
+- Add Steam, gamemode and gamescope behind me.gaming.enable.
+
+Universality
+- me.desktop.enable and me.gaming.enable switches.
+- Home modules detect NixOS, nix-darwin or standalone Home Manager.
+- Add a nix-darwin host and shared darwin module.
+- GUI apps move out of the shared package list.
+- Users are listed explicitly per host through `myusers`.
+- Override nixos-unified's string experimental-features default.
+
+Simplification
+- Tidy configuration.nix, drop removed hardware.opengl.
+- Merge zsh settings into shell.nix, silence git signing warning.
+- Add README and a `just home` recipe.
+
+Run `nix flake update` after applying, since flake.lock is not included.
+---
+ README.md                                    | 111 ++++++++++++
+ configurations/darwin/macbook.nix            |  27 +++
+ configurations/home/upwrd.nix                |  12 +-
+ configurations/nixos/nixos/configuration.nix | 145 +++-------------
+ configurations/nixos/nixos/default.nix       |  14 +-
+ flake.nix                                    |  45 +++--
+ justfile                                     |  15 +-
+ modules/darwin/default.nix                   |  14 ++
+ modules/home/desktop.nix                     | 172 +++++++++++++++++++
+ modules/home/git.nix                         |   3 +-
+ modules/home/me.nix                          |  45 ++---
+ modules/home/niri.nix                        |  58 -------
+ modules/home/noctalia.nix                    |  60 -------
+ modules/home/packages.nix                    |  42 ++---
+ modules/home/regreet.nix                     |   7 -
+ modules/home/shell.nix                       |  31 +---
+ modules/home/standalone.nix                  |   8 +
+ modules/home/zsh.nix                         |  11 --
+ modules/nixos/common/default.nix             |   9 +
+ modules/nixos/common/myusers.nix             |  43 +++--
+ modules/nixos/default.nix                    |  15 +-
+ modules/nixos/desktop.nix                    |  69 ++++++++
+ modules/nixos/gaming.nix                     |  38 ++++
+ modules/nixos/gui/default.nix                |  14 --
+ modules/nixos/gui/gnome.nix                  |   9 -
+ modules/nixos/gui/sddm.nix                   |   7 -
+ 26 files changed, 605 insertions(+), 419 deletions(-)
+ create mode 100644 README.md
+ create mode 100644 configurations/darwin/macbook.nix
+ create mode 100644 modules/darwin/default.nix
+ create mode 100644 modules/home/desktop.nix
+ delete mode 100644 modules/home/niri.nix
+ delete mode 100644 modules/home/noctalia.nix
+ delete mode 100644 modules/home/regreet.nix
+ create mode 100644 modules/home/standalone.nix
+ delete mode 100644 modules/home/zsh.nix
+ create mode 100644 modules/nixos/desktop.nix
+ create mode 100644 modules/nixos/gaming.nix
+ delete mode 100644 modules/nixos/gui/default.nix
+ delete mode 100644 modules/nixos/gui/gnome.nix
+ delete mode 100644 modules/nixos/gui/sddm.nix
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..8a6eeb9
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,111 @@
++# dotfiles
++
++One flake that configures a full NixOS desktop, a Mac, or any other Linux or macOS machine where Nix is only used as a package manager. It is built on [nixos-unified](https://nixos-unified.org), which wires every file under `configurations/` and `modules/` into a flake output automatically.
++
++## What you get
++
++| Where | What |
++| --- | --- |
++| NixOS | greetd login screen with the DankMaterialShell greeter, niri (Wayland), DankMaterialShell, Steam |
++| macOS | nix-darwin plus your shell, git and editor setup |
++| Any other OS | Home Manager only, with your shell, git and editor setup. The desktop is optional on Linux |
++
++GNOME is not used anywhere.
++
++## Layout
++
++```
++flake.nix                      inputs, nothing else
++configurations/
++  nixos/<host>/                one folder per NixOS machine
++  darwin/<host>.nix            one file per Mac
++  home/<user>.nix              one file per user, used by every machine above
++modules/
++  nixos/                       reusable NixOS modules (desktop.nix, gaming.nix, common/)
++  darwin/                      reusable nix-darwin modules
++  home/                        reusable Home Manager modules, all loaded automatically
++```
++
++The switches live in two places.
++
++| Switch | Set in | Effect |
++| --- | --- | --- |
++| `me.desktop.enable` | NixOS host file, or the home file on other Linux | niri, DankMaterialShell and (on NixOS) the login screen |
++| `me.gaming.enable` | NixOS host file | Steam, gamemode and gamescope |
++
++On NixOS, `me.desktop.enable` also turns on the matching per-user setup, so there is one switch to flip.
++
++## Using it
++
++Run everything from a checkout of this repo. `just` lists the shortcuts.
++
++### Full NixOS
++
++The host is `configurations/nixos/nixos/`. Its name must equal the machine's hostname.
++
++```sh
++sudo nixos-rebuild switch --flake .#nixos
++# or simply
++just run
++```
++
++Log in through the new greeter and pick the niri session. Press `Mod+Space` for the launcher, `Mod+T` for a terminal and `Mod+Shift+/` for the full shortcut list. `Mod` is the Super key.
++
++Steam is in the launcher. It needs X11, which niri provides through `xwayland-satellite`. That is already set up.
++
++### macOS
++
++Edit `configurations/darwin/macbook.nix` and make the file name match `scutil --get LocalHostName`. Set `nixpkgs.hostPlatform` for your chip and `myusers` for your account. Then
++
++```sh
++nix run nix-darwin -- switch --flake .#macbook   # first time
++just run                                         # afterwards
++```
++
++The username in `myusers` needs a file at `configurations/home/<username>.nix`. Copy `upwrd.nix` and change the name.
++
++### Nix as a package manager on any other OS
++
++Install Nix with flakes enabled, then
++
++```sh
++just home
++# which is the same as
++nix run .#activate -- $USER@localhost
++```
++
++This applies `configurations/home/$USER.nix` only. It installs your CLI tools and dotfiles and touches nothing system wide.
++
++To get niri and DankMaterialShell on another Linux distribution, add `desktop.enable = true;` in the `me` block of your home file. This is best effort. You still need to
++
++1. Add a Wayland session that runs `niri-session` to your login manager.
++2. Follow the GPU driver setup steps that Home Manager prints during activation, if it asks for them.
++
++Steam is not set up in this mode. Use your distribution's package instead.
++
++## Adding things
++
++A new NixOS machine. Copy `configurations/nixos/nixos/` to a folder named after the hostname, replace `hardware-configuration.nix` with the output of `nixos-generate-config`, and edit `myusers` and the switches in `default.nix`.
++
++A new user. Copy `configurations/home/upwrd.nix`, change the name and personal details, and list the name in `myusers` of each host that should have it.
++
++A new package for every machine. Add it to `modules/home/packages.nix`. Desktop apps go in `modules/home/desktop.nix`.
++
++## Customising the desktop
++
++Keybinds, layout and input settings are in `modules/home/desktop.nix` under `programs.niri.settings`. The shell's own shortcuts come from DankMaterialShell. Its appearance can be changed from its settings panel (`Mod+Comma`), and the choices persist. The login screen picks up your shell theme and wallpaper from your home folder.
++
++## Updating
++
++```sh
++just update    # refresh flake.lock
++just run       # apply
++```
++
++Run `nix flake update` after pulling a change that adds inputs. DankMaterialShell follows current nixpkgs closely, so keep `nixpkgs` reasonably fresh.
++
++## Troubleshooting
++
++If the screen stays black after login, switch to a text console with `Ctrl+Alt+F2` and run `journalctl --user -u dms -b` and `journalctl -b -u greetd`.
++
++If `me.desktop.enable` fails on a Mac, that is intended. niri and DankMaterialShell are Linux only.
+diff --git a/configurations/darwin/macbook.nix b/configurations/darwin/macbook.nix
+new file mode 100644
+index 0000000..ac210e1
+--- /dev/null
++++ b/configurations/darwin/macbook.nix
+@@ -0,0 +1,27 @@
++# A Mac managed by nix-darwin. Apply it with `just run` or `sudo darwin-rebuild switch --flake .#macbook`
++#
++# First time setup
++#   1. Install Nix, then run `nix run nix-darwin -- switch --flake .#macbook`
++#   2. The file name must match your Mac's host name, see `scutil --get LocalHostName`.
++#      Rename this file if they differ.
++#
++# The desktop (niri, DankMaterialShell) and Steam are Linux only, so there is nothing
++# to switch on here. Your shell, git and editor setup still comes from /modules/home/*.
++{ flake, ... }:
++let
++  inherit (flake) inputs;
++  inherit (inputs) self;
++in
++{
++  imports = [ self.darwinModules.default ];
++
++  nixpkgs.hostPlatform = "aarch64-darwin"; # Use "x86_64-darwin" on an Intel Mac
++
++  # Must match your macOS account name and have a file at configurations/home/<name>.nix
++  myusers = [ "upwrd" ];
++
++  # If you installed Nix with the Determinate installer, let it manage Nix instead.
++  # nix.enable = false;
++
++  system.stateVersion = 6;
++}
+diff --git a/configurations/home/upwrd.nix b/configurations/home/upwrd.nix
+index 91d6c4f..8e26584 100644
+--- a/configurations/home/upwrd.nix
++++ b/configurations/home/upwrd.nix
+@@ -1,3 +1,8 @@
++# Home Manager config for the user "upwrd". It is used in two ways
++#   NixOS or macOS   pulled in through `myusers` in the host file
++#   standalone       `just home`, or `nix run .#activate -- upwrd@localhost`
++#
++# The settings themselves live in /modules/home/*
+ { flake, pkgs, ... }:
+ let
+   inherit (flake) inputs;
+@@ -8,13 +13,16 @@ in
+     self.homeModules.default
+   ];
+ 
+-  # Defined by /modules/home/me.nix
+-  # And used all around in /modules/home/*
++  # Options defined by /modules/home/me.nix and used all around /modules/home/*
+   me = {
+     username = "upwrd";
+     fullname = "Luke Davis";
+     email = "lukendavis7@gmail.com";
+     shell = pkgs.zsh;
++
++    # Standalone Linux only. On NixOS the host file decides, on macOS it does not apply.
++    # desktop.enable = true;
+   };
++
+   home.stateVersion = "20.09";
+ }
+diff --git a/configurations/nixos/nixos/configuration.nix b/configurations/nixos/nixos/configuration.nix
+index 9f032da..8c85b2d 100644
+--- a/configurations/nixos/nixos/configuration.nix
++++ b/configurations/nixos/nixos/configuration.nix
+@@ -1,143 +1,54 @@
+-# Edit this configuration file to define what should be installed on
+-# your system.  Help is available in the configuration.nix(5) man page
+-# and in the NixOS manual (accessible by running ‘nixos-help’).
+-
+-{ config, pkgs, ... }:
+-
++# Settings specific to this one machine, an Intel MacBook with Broadcom Wi-Fi.
++# Reusable pieces live in /modules/nixos/ and the hardware scan lives in ./hardware-configuration.nix
++# Options are documented in configuration.nix(5) and at https://search.nixos.org/options
++{ pkgs, ... }:
+ {
+-  imports = [
+-    # Include the results of the hardware scan.
+-    ./hardware-configuration.nix
+-    # Include Home Manager
+-    # <home-manager/nixos>
+-  ];
+-  boot = {
+-    loader = {
+-
+-      # Use the systemd-boot EFI boot loader.
+-      systemd-boot.enable = true;
+-      efi = {
+-        canTouchEfiVariables = true;
+-        efiSysMountPoint = "/boot/efi";
+-      };
++  imports = [ ./hardware-configuration.nix ];
++
++  # UEFI boot loader
++  boot.loader = {
++    systemd-boot.enable = true;
++    efi = {
++      canTouchEfiVariables = true;
++      efiSysMountPoint = "/boot/efi";
+     };
+   };
+-  networking = {
+ 
++  networking = {
+     hostName = "nixos";
+     networkmanager = {
+-      # Define your hostname.
+-      # networking.wireless.enable = false;  # Enables wireless support via wpa_supplicant.
+       enable = true;
+       wifi = {
+-        # Use networkmanager on mac
+         backend = "wpa_supplicant";
+         powersave = false;
+       };
+     };
+-
+-    # The global useDHCP flag is deprecated, therefore explicitly set to false here.
+-    # Per-interface useDHCP will be mandatory in the future, so this generated config
+-    # replicates the default behaviour.
++    # The Wi-Fi interface of this machine
+     useDHCP = false;
+     interfaces.wlp3s0.useDHCP = true;
+   };
+ 
+-  # Stop boot lag?
++  # Do not hold up boot while waiting for the network.
+   systemd.services.NetworkManager-wait-online.enable = false;
+ 
+-  # Allow unfree software, MOSTLY for Broadcom driver support on Macbook hardware
+-
++  # The Broadcom driver and firmware are unfree.
+   nixpkgs.config.allowUnfree = true;
++  hardware.enableAllFirmware = true;
+ 
+-  # Set your time zone.
+   time.timeZone = "America/Chicago";
+-
+-  # Configure network proxy if necessary
+-  # networking.proxy.default = "http://user:password@proxy:port/";
+-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
+-
+-  # Select internationalisation properties.
+   i18n.defaultLocale = "en_US.UTF-8";
+-  # console = {
+-  #   font = "Lat2-Terminus16";
+-  #   keyMap = "us";
+-  # };
+-
+-  # Enable CUPS to print documents.
+-  # services.printing.enable = true;
+-
+-  # Enable sound.
+-  # hardware.pulseaudio.enable = true;
+-
+-  # Define a user account. Don't forget to set a password with ‘passwd’.
+-  # users.users.jane = {
+-  #   isNormalUser = true;
+-  #   extraGroups = [ "wheel" ]; # Enable ‘sudo’ for the user.
+-  # };
+-
+-  users.users.upwrd = {
+-    isNormalUser = true;
+-    extraGroups = [
+-      "networkmanager"
+-      "wheel"
+-    ];
+-
+-  };
+-
+-  #enable polkit for sway
+-  security.polkit.enable = true;
+-  environment = {
+-
+-    # List packages installed in system profile. To search, run:
+-    # $ nix search wget
+-    systemPackages = with pkgs; [
+-      vim
+-      git
+-    ];
+-    sessionVariables.NIXOS_OZONE_WL = "1";
+-  };
+-  hardware = {
+-    # Hardware Support for Wayland Sway
+-    opengl = {
+-      enable = true;
+-    };
+-
+-    # Enable Broadcom STA driver for Mac
+-    enableAllFirmware = true;
+-  };
+ 
+-  services = {
+-
+-    power-profiles-daemon.enable = true;
+-    upower.enable = true;
+-  };
+-
+-  # Some programs need SUID wrappers, can be configured further or are
+-  # started in user sessions.
+-  # programs.mtr.enable = true;
+-  # programs.gnupg.agent = {
+-  #   enable = true;
+-  #   enableSSHSupport = true;
+-  # };
+-
+-  # List services that you want to enable:
+-
+-  # Enable the OpenSSH daemon.
+-  # services.openssh.enable = true;
+-
+-  # Open ports in the firewall.
+-  # networking.firewall.allowedTCPPorts = [ ... ];
+-  # networking.firewall.allowedUDPPorts = [ ... ];
+-  # Or disable the firewall altogether.
+-  # networking.firewall.enable = false;
++  # Extra groups for the main user. The account itself comes from `myusers`.
++  users.users.upwrd.extraGroups = [
++    "networkmanager"
++    "wheel"
++  ];
+ 
+-  # This value determines the NixOS release from which the default
+-  # settings for stateful data, like file locations and database versions
+-  # on your system were taken. It‘s perfectly fine and recommended to leave
+-  # this value at the release version of the first install of this system.
+-  # Before changing this value read the documentation for this option
+-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
+-  system.stateVersion = "20.09"; # Did you read the comment?
++  environment.systemPackages = with pkgs; [
++    vim
++    git
++  ];
+ 
++  # Leave this at the release of the first install. Read `man configuration.nix` before changing it.
++  system.stateVersion = "20.09";
+ }
+diff --git a/configurations/nixos/nixos/default.nix b/configurations/nixos/nixos/default.nix
+index 118b10a..3806b66 100644
+--- a/configurations/nixos/nixos/default.nix
++++ b/configurations/nixos/nixos/default.nix
+@@ -1,7 +1,7 @@
+-# See /modules/nixos/* for actual settings
+-# This file is just *top-level* configuration.
++# The NixOS machine called "nixos". Apply it with `just run` or `sudo nixos-rebuild switch --flake .#nixos`
++#
++# Reusable settings live in /modules/nixos/. Only what is specific to this machine goes here.
+ { flake, ... }:
+-
+ let
+   inherit (flake) inputs;
+   inherit (inputs) self;
+@@ -9,7 +9,13 @@ in
+ {
+   imports = [
+     self.nixosModules.default
+-    self.nixosModules.gui
+     ./configuration.nix
+   ];
++
++  # Users on this machine. Each one needs configurations/home/<name>.nix
++  myusers = [ "upwrd" ];
++
++  # Feature switches
++  me.desktop.enable = true; # niri + DankMaterialShell + graphical login screen
++  me.gaming.enable = true; # Steam
+ }
+diff --git a/flake.nix b/flake.nix
+index 1cafdb6..b4e8508 100644
+--- a/flake.nix
++++ b/flake.nix
+@@ -1,48 +1,45 @@
+ {
+-  description = "A home-manager template providing useful tools & settings for Nix-based development";
++  description = "Personal Nix config for NixOS, macOS (nix-darwin) and standalone Home Manager";
+ 
+   inputs = {
+-    # Principle inputs (updated by `nix run .#update`)
++    # Core
+     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+-    nix-darwin = {
+-      url = "github:LnL7/nix-darwin";
+-      inputs.nixpkgs.follows = "nixpkgs";
+-    };
++    flake-parts.url = "github:hercules-ci/flake-parts";
++    nixos-unified.url = "github:srid/nixos-unified";
+ 
++    # System and user management
+     home-manager = {
+       url = "github:nix-community/home-manager";
+       inputs.nixpkgs.follows = "nixpkgs";
+     };
+-
+-    flake-parts.url = "github:hercules-ci/flake-parts";
+-
+-    nixos-unified.url = "github:srid/nixos-unified";
+-
+-    # Software inputs
+-    nix-index-database = {
+-      url = "github:nix-community/nix-index-database";
++    nix-darwin = {
++      url = "github:LnL7/nix-darwin";
+       inputs.nixpkgs.follows = "nixpkgs";
+     };
+ 
+-    noctalia = {
+-      url = "github:noctalia-dev/noctalia-shell";
++    # Shell tooling
++    nix-index-database = {
++      url = "github:nix-community/nix-index-database";
+       inputs.nixpkgs.follows = "nixpkgs";
+     };
+ 
++    # Linux desktop (only used when `me.desktop.enable = true`)
+     niri = {
+       url = "github:sodiboo/niri-flake";
+       inputs.nixpkgs.follows = "nixpkgs";
+     };
++    dms = {
++      url = "github:AvengeMedia/DankMaterialShell";
++      inputs.nixpkgs.follows = "nixpkgs";
++    };
++    dank-greeter = {
++      url = "github:AvengeMedia/dank-greeter";
++      inputs.nixpkgs.follows = "nixpkgs";
++    };
+   };
+ 
+-  nixConfig = {
+-    extra-substituters = [ "https://noctalia.cachix.org" ];
+-    extra-trusted-public-keys = [
+-      "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+-    ];
+-  };
+-
+-  # Wired using https://nixos-unified.org/guide/autowiring
++  # Everything under configurations/ and modules/ is wired up automatically.
++  # See https://nixos-unified.org/guide/autowiring and the README.
+   outputs =
+     inputs:
+     inputs.nixos-unified.lib.mkFlake {
+diff --git a/justfile b/justfile
+index 77602eb..2f64c4c 100644
+--- a/justfile
++++ b/justfile
+@@ -11,6 +11,16 @@ default:
+ update:
+   nix flake update
+ 
++# Apply the configuration of this machine (NixOS or macOS)
++[group('Main')]
++run:
++  nix run
++
++# Apply only the Home Manager config, for use as a package manager on any OS
++[group('Main')]
++home:
++  nix run .#activate -- $USER@localhost
++
+ # Lint nix files
+ [group('dev')]
+ lint:
+@@ -25,8 +35,3 @@ check:
+ [group('dev')]
+ dev:
+   nix develop
+-
+-# Activate the configuration
+-[group('Main')]
+-run:
+-  nix run
+diff --git a/modules/darwin/default.nix b/modules/darwin/default.nix
+new file mode 100644
+index 0000000..d9056ac
+--- /dev/null
++++ b/modules/darwin/default.nix
+@@ -0,0 +1,14 @@
++# Entry point for every macOS machine managed by nix-darwin
++# (host files import this as `self.darwinModules.default`).
++# For per-user settings see /modules/home/*.
++{ ... }:
++{
++  imports = [
++    # Defines `myusers`. It is imported by path because flake outputs under nixosModules
++    # are tagged as NixOS modules, which nix-darwin refuses.
++    ../nixos/common
++  ];
++
++  # Lets /etc/zshrc load the Nix environment.
++  programs.zsh.enable = true;
++}
+diff --git a/modules/home/desktop.nix b/modules/home/desktop.nix
+new file mode 100644
+index 0000000..6c0d28e
+--- /dev/null
++++ b/modules/home/desktop.nix
+@@ -0,0 +1,172 @@
++# The per-user side of the desktop, niri (compositor) plus DankMaterialShell (bar, launcher,
++# notifications, lock screen). It is switched on by `me.desktop.enable`.
++#
++# Two situations are handled.
++#   NixOS            /modules/nixos/desktop.nix installs niri and the login screen, so this
++#                    file only writes the user settings.
++#   other Linux      standalone Home Manager. This file also installs niri, but you must still add a
++#                    "niri" session to your login manager and have working GPU drivers.
++#                    The README has the details.
++{ config, flake, lib, pkgs, osConfig ? null, ... }:
++let
++  inherit (flake) inputs;
++  cfg = config.me.desktop;
++
++  # `osConfig` only exists when Home Manager is part of a NixOS or nix-darwin system.
++  onSystem = osConfig != null;
++
++  terminal = lib.getExe config.programs.kitty.package;
++
++  # Mod+1..9 jumps to a workspace, Mod+Shift+1..9 sends the current column there.
++  workspaceBinds = lib.listToAttrs (lib.concatMap
++    (n: [
++      { name = "Mod+${toString n}"; value.action.focus-workspace = n; }
++      { name = "Mod+Shift+${toString n}"; value.action.move-column-to-workspace = n; }
++    ])
++    (lib.range 1 9));
++in
++{
++  # These only declare options. Nothing happens until cfg.enable is true.
++  imports = [
++    inputs.niri.homeModules.niri
++    inputs.dms.homeModules.dank-material-shell
++    inputs.dms.homeModules.niri
++  ];
++
++  config = lib.mkIf cfg.enable (lib.mkMerge [
++    {
++      assertions = [{
++        assertion = pkgs.stdenv.hostPlatform.isLinux;
++        message = "me.desktop.enable needs Linux. niri and DankMaterialShell do not run on macOS.";
++      }];
++    }
++
++    # Everything below is Linux only, so macOS shows the assertion above instead of a build error.
++    (lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
++      # Compositor
++      programs.niri = {
++        # On NixOS the system already installs niri and the login session.
++        enable = lib.mkDefault (!onSystem);
++        # Use the niri from nixpkgs, which keeps the system and user side in sync.
++        package = lib.mkDefault (if onSystem then osConfig.programs.niri.package else pkgs.niri);
++
++        settings = {
++          prefer-no-csd = true;
++          hotkey-overlay.skip-at-startup = true;
++
++          input = {
++            keyboard.xkb.layout = "us";
++            touchpad = {
++              tap = true;
++              natural-scroll = true;
++            };
++          };
++
++          layout = {
++            gaps = 12;
++            default-column-width.proportion = 0.5;
++            preset-column-widths = [
++              { proportion = 1.0 / 3.0; }
++              { proportion = 1.0 / 2.0; }
++              { proportion = 2.0 / 3.0; }
++            ];
++          };
++
++          # Lets X11 apps such as Steam run. niri starts it on demand.
++          xwayland-satellite.path = lib.getExe pkgs.xwayland-satellite;
++
++          # Keys for the shell itself (Mod+Space launcher, Mod+N notifications, Mod+X power menu,
++          # volume, brightness and so on) come from programs.dank-material-shell.niri below.
++          # Mod is the Super key. Run `niri msg action` for the full list of actions.
++          binds = {
++            "Mod+Shift+Slash" = {
++              action.show-hotkey-overlay = [ ];
++              hotkey-overlay.title = "Show these shortcuts";
++            };
++
++            # Apps
++            "Mod+T" = {
++              action.spawn = terminal;
++              hotkey-overlay.title = "Open a terminal";
++            };
++            "Mod+Q" = {
++              action.close-window = [ ];
++              hotkey-overlay.title = "Close the window";
++            };
++            "Mod+Shift+E" = {
++              action.quit = [ ];
++              hotkey-overlay.title = "Quit niri";
++            };
++
++            # Move around. Arrow keys and vim keys both work.
++            "Mod+Left".action.focus-column-left = [ ];
++            "Mod+Right".action.focus-column-right = [ ];
++            "Mod+Up".action.focus-window-up = [ ];
++            "Mod+Down".action.focus-window-down = [ ];
++            "Mod+H".action.focus-column-left = [ ];
++            "Mod+L".action.focus-column-right = [ ];
++            "Mod+K".action.focus-window-up = [ ];
++            "Mod+J".action.focus-window-down = [ ];
++
++            # Rearrange
++            "Mod+Ctrl+Left".action.move-column-left = [ ];
++            "Mod+Ctrl+Right".action.move-column-right = [ ];
++            "Mod+Ctrl+Up".action.move-window-up = [ ];
++            "Mod+Ctrl+Down".action.move-window-down = [ ];
++            "Mod+Ctrl+H".action.move-column-left = [ ];
++            "Mod+Ctrl+L".action.move-column-right = [ ];
++            "Mod+Ctrl+K".action.move-window-up = [ ];
++            "Mod+Ctrl+J".action.move-window-down = [ ];
++
++            # Workspaces and overview
++            "Mod+Page_Down".action.focus-workspace-down = [ ];
++            "Mod+Page_Up".action.focus-workspace-up = [ ];
++            "Mod+O".action.toggle-overview = [ ];
++
++            # Window size
++            "Mod+R".action.switch-preset-column-width = [ ];
++            "Mod+F".action.maximize-column = [ ];
++            "Mod+Shift+F".action.fullscreen-window = [ ];
++            "Mod+C".action.center-column = [ ];
++            "Mod+Shift+Space".action.toggle-window-floating = [ ];
++
++            # Screenshots
++            "Print".action.screenshot = [ ];
++            "Ctrl+Print".action.screenshot-screen = [ ];
++            "Alt+Print".action.screenshot-window = [ ];
++          } // workspaceBinds;
++        };
++      };
++
++      # Shell
++      programs.dank-material-shell = {
++        enable = true;
++        # Start the shell with the graphical session.
++        systemd.enable = true;
++        niri = {
++          # Declare the shell's keys here so they work on first login.
++          enableKeybinds = true;
++          # The alternative is to let DankMaterialShell write ~/.config/niri/dms/*.kdl at runtime.
++          # Pick one of the two. Using both is not recommended.
++          includes.enable = false;
++        };
++        # Appearance and behaviour can also be set declaratively, for example
++        #   settings.theme = "...";
++        # Otherwise change them in the shell's settings (Mod+Comma) and they persist as usual.
++      };
++
++      # Apps and helpers the desktop expects.
++      programs.kitty.enable = true;
++      programs.firefox.enable = true;
++      home.packages = [ pkgs.wl-clipboard ]
++        # On NixOS these come from the system, on other Linux the user profile has to bring them.
++        ++ lib.optionals (!onSystem) (with pkgs; [ inter fira-code material-symbols ]);
++      fonts.fontconfig.enable = lib.mkIf (!onSystem) true;
++
++      home.sessionVariables.NIXOS_OZONE_WL = "1";
++
++      # On non-NixOS Linux this fixes XDG paths and links the GPU drivers.
++      targets.genericLinux.enable = lib.mkDefault (!onSystem);
++    })
++  ]);
++}
+diff --git a/modules/home/git.nix b/modules/home/git.nix
+index 784b85d..cb52bf3 100644
+--- a/modules/home/git.nix
++++ b/modules/home/git.nix
+@@ -10,6 +10,8 @@
+     git = {
+       enable = true;
+       ignores = [ "*~" "*.swp" ];
++      # Commits are not signed. Setting this also silences a warning about the changed default.
++      signing.format = null;
+       settings = {
+         user.name = config.me.fullname;
+         user.email = config.me.email;
+@@ -20,5 +22,4 @@
+     };
+     lazygit.enable = true;
+   };
+-
+ }
+diff --git a/modules/home/me.nix b/modules/home/me.nix
+index 35127ae..3b3bd56 100644
+--- a/modules/home/me.nix
++++ b/modules/home/me.nix
+@@ -1,27 +1,28 @@
+-# User configuration module
++# The personal settings of one user. Fill them in at configurations/home/<user>.nix
+ { config, lib, ... }:
+ {
+-  options = {
+-    me = {
+-      username = lib.mkOption {
+-        type = lib.types.str;
+-        description = "Your username as shown by `id -un`";
+-      };
+-      fullname = lib.mkOption {
+-        type = lib.types.str;
+-        description = "Your full name for use in Git config";
+-      };
+-      email = lib.mkOption {
+-        type = lib.types.str;
+-        description = "Your email for use in Git config";
+-      };
+-      shell = lib.mkOption {
+-        type = lib.types.package;
+-        description = "The default shell for this user";
+-      };
++  options.me = {
++    username = lib.mkOption {
++      type = lib.types.str;
++      description = "Your username as shown by `id -un`";
+     };
++    fullname = lib.mkOption {
++      type = lib.types.str;
++      description = "Your full name for use in Git config";
++    };
++    email = lib.mkOption {
++      type = lib.types.str;
++      description = "Your email for use in Git config";
++    };
++    shell = lib.mkOption {
++      type = lib.types.package;
++      description = "The default shell for this user";
++    };
++    desktop.enable = lib.mkEnableOption ''
++      the niri and DankMaterialShell desktop for this user (Linux only).
++      On NixOS this is switched on for you by `me.desktop.enable` in the host file
++    '';
+   };
+-  config = {
+-    home.username = config.me.username;
+-  };
++
++  config.home.username = config.me.username;
+ }
+diff --git a/modules/home/niri.nix b/modules/home/niri.nix
+deleted file mode 100644
+index ef2e2c4..0000000
+--- a/modules/home/niri.nix
++++ /dev/null
+@@ -1,58 +0,0 @@
+-{
+-  config,
+-  flake,
+-  pkgs,
+-  ...
+-}:
+-{
+-  imports = [ flake.inputs.niri.homeModules.niri ];
+-
+-  # options.app.niri.enable = lib.mkEnableOption "niri";
+-
+-  # config = lib.mkIf (config.app.niri.enable) {
+-  programs.niri = {
+-    enable = true;
+-    
+-    # settings = {
+-    #   binds =
+-    #     with config.lib.niri.actions;
+-    #     let
+-    #       sh = spawn "sh" "-c";
+-    #     in
+-    #     {
+-    #       # First Key Row
+-    #       "Super+Space".action = spawn "${pkgs.rofi-wayland}/bin/rofi" "-show" "drun";
+-    #       "Super+W".action = spawn "${pkgs.kitty}/bin/kitty";
+-    #       "Super+E".action = spawn "${pkgs.firefox}/bin/firefox";
+-    #       "Super+R".action = close-window;
+-
+-    #       # Quit Niri
+-    #       "Super+Shift+Q".action = quit;
+-
+-    #       # # Lock Session
+-    #       # "Super+L".action = spawn "${pkgs.systemd}/bin/loginctl" "lock-session";
+-
+-    #       # Screenshotting
+-    #       # "Print".action = screenshot;
+-
+-    #       # Workspackes
+-    #       "Super+0".action = focus-workspace 0;
+-    #       "Super+1".action = focus-workspace 1;
+-    #       "Super+2".action = focus-workspace 2;
+-    #       "Super+3".action = focus-workspace 3;
+-    #       "Super+4".action = focus-workspace 4;
+-    #       "Super+5".action = focus-workspace 5;
+-    #       "Super+6".action = focus-workspace 6;
+-    #       "Super+7".action = focus-workspace 7;
+-    #       "Super+8".action = focus-workspace 8;
+-    #       "Super+9".action = focus-workspace 9;
+-
+-    #       # Special Keys
+-    #       "XF86AudioRaiseVolume".action = sh "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1+";
+-    #       "XF86AudioLowerVolume".action = sh "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "0.1-";
+-    #       "XF86AudioMute".action = sh "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle";
+-    #     };
+-    # };
+-    # };
+-  };
+-}
+diff --git a/modules/home/noctalia.nix b/modules/home/noctalia.nix
+deleted file mode 100644
+index 6af53f0..0000000
+--- a/modules/home/noctalia.nix
++++ /dev/null
+@@ -1,60 +0,0 @@
+-{ flake, ... }:
+-{
+-    imports =  [ flake.inputs.noctalia.homeModules.default ]; # configure options
+-  programs.noctalia-shell = {
+-    enable = true;
+-    settings = {
+-      # configure noctalia here
+-      bar = {
+-        density = "compact";
+-        position = "right";
+-        showCapsule = false;
+-        widgets = {
+-          left = [
+-            {
+-              id = "ControlCenter";
+-              useDistroLogo = true;
+-            }
+-            {
+-              id = "Network";
+-            }
+-            {
+-              id = "Bluetooth";
+-            }
+-          ];
+-          center = [
+-            {
+-              hideUnoccupied = false;
+-              id = "Workspace";
+-              labelMode = "none";
+-            }
+-          ];
+-          right = [
+-            {
+-              alwaysShowPercentage = false;
+-              id = "Battery";
+-              warningThreshold = 30;
+-            }
+-            {
+-              formatHorizontal = "HH:mm";
+-              formatVertical = "HH mm";
+-              id = "Clock";
+-              useMonospacedFont = true;
+-              usePrimaryColor = true;
+-            }
+-          ];
+-        };
+-      };
+-      colorSchemes.predefinedScheme = "Monochrome";
+-      general = {
+-        avatarImage = "/home/drfoobar/.face";
+-        radiusRatio = 0.2;
+-      };
+-      location = {
+-        monthBeforeDay = true;
+-        name = "Dallas, Texas";
+-      };
+-    };
+-    # this may also be a string or a path to a JSON file.
+-  };
+-}
+diff --git a/modules/home/packages.nix b/modules/home/packages.nix
+index a97595c..617d608 100644
+--- a/modules/home/packages.nix
++++ b/modules/home/packages.nix
+@@ -1,46 +1,30 @@
++# Packages every user gets on every machine, with or without a desktop.
++# GUI apps belong in desktop.nix instead, so macOS and servers stay lean.
++# Search for packages at https://search.nixos.org/packages
+ { pkgs, ... }:
+ {
+-  # Nix packages to install to $HOME
+-  #
+-  # Search for packages here: https://search.nixos.org/packages
+   home.packages = with pkgs; [
++    # Nix tooling
+     omnix
+-
+-    # Unix tools
+-    ripgrep # Better `grep`
+-    gnumake
+-
+-    # Nix dev
+     cachix
+     nil # Nix language server
+     nix-info
+     nixpkgs-fmt
+ 
+-    # On ubuntu, we need this less for `man home-configuration.nix`'s pager to
+-    # work.
+-    less
+-
++    # Unix tools
++    ripgrep # Better `grep`
++    gnumake
++    less # Needed for the `man home-configuration.nix` pager on Ubuntu
+     gh
+ 
+-    # Essentials
++    # Editor
+     helix
+-    firefox
+-    kitty
+-
+-    mako
+-    wl-clipboard
+   ];
+ 
+-  # Programs natively supported by home-manager.
+-  # They can be configured in `programs.*` instead of using home.packages.
++  # Programs with a Home Manager module can be set up under `programs.*`.
+   programs = {
+-    # Better `cat`
+-    bat.enable = true;
+-    # Type `<ctrl> + r` to fuzzy search your shell history
+-    fzf.enable = true;
+-    # Install btop https://github.com/aristocratos/btop
+-    btop.enable = true;
+-    # Enable zsh for compat
+-    zsh.enable = true;
++    bat.enable = true; # Better `cat`
++    fzf.enable = true; # Press ctrl+r to fuzzy search your shell history
++    btop.enable = true; # https://github.com/aristocratos/btop
+   };
+ }
+diff --git a/modules/home/regreet.nix b/modules/home/regreet.nix
+deleted file mode 100644
+index c471aaf..0000000
+--- a/modules/home/regreet.nix
++++ /dev/null
+@@ -1,7 +0,0 @@
+-{ config, ... }:
+-{
+-#   programs = {
+-#     regreet.enable = true;
+-#   };
+-
+-}
+diff --git a/modules/home/shell.nix b/modules/home/shell.nix
+index 05a5397..03f2f1d 100644
+--- a/modules/home/shell.nix
++++ b/modules/home/shell.nix
+@@ -1,35 +1,22 @@
++# Shells. zsh is the default on macOS, bash is kept for compatibility.
+ { ... }:
+ {
+   programs = {
+-    # on macOS, you probably don't need this
+-    bash = {
+-      enable = true;
+-      initExtra = ''
+-        # Custom bash profile goes here
+-      '';
+-    };
++    bash.enable = true;
+ 
+-    # For macOS's default shell.
+     zsh = {
+       enable = true;
+       autosuggestion.enable = true;
+       syntaxHighlighting.enable = true;
+       enableCompletion = true;
+-      envExtra = ''
+-        # Custom ~/.zshenv goes here
+-      '';
+-      profileExtra = ''
+-        # Custom ~/.zprofile goes here
+-      '';
+-      loginExtra = ''
+-        # Custom ~/.zlogin goes here
+-      '';
+-      logoutExtra = ''
+-        # Custom ~/.zlogout goes here
+-      '';
++      oh-my-zsh = {
++        enable = true;
++        theme = "robbyrussell";
++      };
++      # Add your own startup code with `initContent`, `envExtra` or `profileExtra`.
+     };
+ 
+-    # Type `z <pat>` to cd to some directory
+-    zoxide.enable = true;      
++    # Type `z <pattern>` to jump to a directory you have visited before.
++    zoxide.enable = true;
+   };
+ }
+diff --git a/modules/home/standalone.nix b/modules/home/standalone.nix
+new file mode 100644
+index 0000000..eda00bb
+--- /dev/null
++++ b/modules/home/standalone.nix
+@@ -0,0 +1,8 @@
++# Settings that only apply when Home Manager runs on its own, as a package manager on top of
++# another OS (Ubuntu, Fedora, WSL, macOS ...). When it is part of NixOS or nix-darwin the
++# system takes care of these things.
++{ lib, osConfig ? null, ... }:
++{
++  # Provides the `home-manager` command.
++  programs.home-manager.enable = lib.mkDefault (osConfig == null);
++}
+diff --git a/modules/home/zsh.nix b/modules/home/zsh.nix
+deleted file mode 100644
+index 2350380..0000000
+--- a/modules/home/zsh.nix
++++ /dev/null
+@@ -1,11 +0,0 @@
+-{ ...}:
+-{
+-	programs.zsh = {
+-  enable = true;
+-  enableAutosuggestions = true;
+-  oh-my-zsh = {
+-    enable = true;
+-    theme = "robbyrussell";
+-  };
+-};
+-}
+diff --git a/modules/nixos/common/default.nix b/modules/nixos/common/default.nix
+index 989d9e8..5428fbc 100644
+--- a/modules/nixos/common/default.nix
++++ b/modules/nixos/common/default.nix
+@@ -1,5 +1,14 @@
++# Settings shared by NixOS and macOS (nix-darwin) machines.
++{ ... }:
+ {
+   imports = [
+     ./myusers.nix
+   ];
++
++  # nixos-unified sets this as a plain string, which current nixpkgs rejects.
++  # A list at normal priority overrides its default.
++  nix.settings.experimental-features = [
++    "nix-command"
++    "flakes"
++  ];
+ }
+diff --git a/modules/nixos/common/myusers.nix b/modules/nixos/common/myusers.nix
+index 4437c3c..a6cf892 100644
+--- a/modules/nixos/common/myusers.nix
++++ b/modules/nixos/common/myusers.nix
+@@ -1,4 +1,7 @@
+-# List of users for darwin or nixos system and their top-level configuration.
++# Declares which users a machine has, for both NixOS and nix-darwin.
++#
++# Each name needs a Home Manager file at configurations/home/<name>.nix.
++# Hosts list their users explicitly, for example `myusers = [ "upwrd" ];`
+ { flake, pkgs, lib, config, ... }:
+ let
+   inherit (flake.inputs) self;
+@@ -6,42 +9,36 @@ let
+     lib.listToAttrs (map (name: { inherit name; value = f name; }) m);
+ in
+ {
+-  options = {
+-    myusers = lib.mkOption {
+-      type = lib.types.listOf lib.types.str;
+-      description = "List of usernames";
+-      defaultText = "All users under ./configuration/users are included by default";
+-      default =
+-        let
+-          dirContents = builtins.readDir (self + /configurations/home);
+-          fileNames = builtins.attrNames dirContents; # Extracts keys: [ "upwrd.nix" ]
+-          regularFiles = builtins.filter (name: dirContents.${name} == "regular") fileNames; # Filters for regular files
+-          baseNames = map (name: builtins.replaceStrings [ ".nix" ] [ "" ] name) regularFiles; # Removes .nix extension
+-        in
+-        baseNames;
+-    };
++  options.myusers = lib.mkOption {
++    type = lib.types.listOf lib.types.str;
++    default = [ ];
++    example = [ "upwrd" ];
++    description = "Usernames of this machine. Each needs configurations/home/<name>.nix";
+   };
+ 
+   config = {
++    assertions = [{
++      assertion = config.myusers != [ ];
++      message = "Set `myusers` in your host file, otherwise nobody can log in.";
++    }];
++
+     # For home-manager to work.
+     # https://github.com/nix-community/home-manager/issues/4026#issuecomment-1565487545
+     users.users = mapListToAttrs config.myusers (name:
+-      lib.optionalAttrs pkgs.stdenv.isDarwin
+-        {
+-          home = "/Users/${name}";
+-        } // lib.optionalAttrs pkgs.stdenv.isLinux {
++      lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
++        home = "/Users/${name}";
++      }
++      // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+         isNormalUser = true;
+       }
+     );
+ 
+-    # Enable home-manager for our user
++    # Enable home-manager for our users.
+     home-manager.users = mapListToAttrs config.myusers (name: {
+       imports = [ (self + /configurations/home/${name}.nix) ];
+     });
+ 
+     # All users can add Nix caches.
+-    nix.settings.trusted-users = [
+-      "root"
+-    ] ++ config.myusers;
++    nix.settings.trusted-users = [ "root" ] ++ config.myusers;
+   };
+ }
+diff --git a/modules/nixos/default.nix b/modules/nixos/default.nix
+index e612eed..527c741 100644
+--- a/modules/nixos/default.nix
++++ b/modules/nixos/default.nix
+@@ -1,9 +1,16 @@
+-# This is your nixos configuration.
+-# For home configuration, see /modules/home/*
+-{ flake, ... }:
++# Entry point for every NixOS machine (host files import this as `self.nixosModules.default`).
++# For per-user settings see /modules/home/*.
++#
++# The modules below do nothing until their switch is turned on in the host file
++#   me.desktop.enable  (desktop.nix)  niri + DankMaterialShell + login screen
++#   me.gaming.enable   (gaming.nix)   Steam
++{ ... }:
+ {
+   imports = [
+-    flake.inputs.self.nixosModules.common
++    ./common
++    ./desktop.nix
++    ./gaming.nix
+   ];
++
+   services.openssh.enable = true;
+ }
+diff --git a/modules/nixos/desktop.nix b/modules/nixos/desktop.nix
+new file mode 100644
+index 0000000..9a25ac3
+--- /dev/null
++++ b/modules/nixos/desktop.nix
+@@ -0,0 +1,69 @@
++# The graphical session for NixOS, switched on with `me.desktop.enable = true;`
++#
++#   login screen   greetd with the DankMaterialShell greeter
++#   compositor     niri (Wayland)
++#   shell          DankMaterialShell, configured per user in /modules/home/desktop.nix
++#
++# GNOME is intentionally absent. Nothing here pulls in X11 or GDM.
++{ config, flake, lib, pkgs, ... }:
++let
++  inherit (flake) inputs;
++  cfg = config.me.desktop;
++
++  # The greeter copies this user's DankMaterialShell theme and wallpaper to the login screen.
++  mainUser = lib.head config.myusers;
++in
++{
++  imports = [ inputs.dank-greeter.nixosModules.default ];
++
++  options.me.desktop.enable = lib.mkEnableOption "the niri and DankMaterialShell desktop with a graphical login screen";
++
++  config = lib.mkIf cfg.enable {
++    # Compositor. This registers the "niri" session with the login screen and sets up
++    # portals (screen sharing, file pickers) and the keyring.
++    programs.niri.enable = true;
++    services.displayManager.defaultSession = "niri";
++
++    # Login manager. greetd starts the DankMaterialShell greeter inside a tiny niri instance.
++    programs.dms-greeter = {
++      enable = true;
++      compositor.name = "niri";
++      configHome = config.users.users.${mainUser}.home;
++    };
++    # Unlock the keyring with the login password.
++    security.pam.services.greetd.enableGnomeKeyring = true;
++
++    # Things DankMaterialShell talks to (battery, power profiles, avatars, location, auth prompts).
++    services = {
++      upower.enable = true;
++      power-profiles-daemon.enable = true;
++      accounts-daemon.enable = true;
++      geoclue2.enable = true;
++      libinput.enable = true;
++    };
++    security.polkit.enable = true;
++
++    # Graphics and sound.
++    hardware.graphics.enable = lib.mkDefault true;
++    security.rtkit.enable = true;
++    services.pipewire = {
++      enable = true;
++      alsa.enable = true;
++      pulse.enable = true;
++    };
++
++    # Fonts used by DankMaterialShell.
++    fonts.packages = with pkgs; [
++      inter
++      fira-code
++      material-symbols
++    ];
++
++    # Ask Electron and Chromium apps to use Wayland.
++    environment.sessionVariables.NIXOS_OZONE_WL = "1";
++
++    # Give every user's Home Manager config the same switch, so /modules/home/desktop.nix
++    # writes the matching per-user settings.
++    home-manager.sharedModules = [{ me.desktop.enable = lib.mkDefault true; }];
++  };
++}
+diff --git a/modules/nixos/gaming.nix b/modules/nixos/gaming.nix
+new file mode 100644
+index 0000000..c66d9af
+--- /dev/null
++++ b/modules/nixos/gaming.nix
+@@ -0,0 +1,38 @@
++# Steam and the usual helpers, switched on with `me.gaming.enable = true;`
++#
++# Steam needs an X11 server, which niri provides through xwayland-satellite.
++# That is configured in /modules/home/desktop.nix, so pair this with me.desktop.enable.
++{ config, lib, pkgs, ... }:
++let
++  cfg = config.me.gaming;
++in
++{
++  options.me.gaming.enable = lib.mkEnableOption "Steam and game helpers";
++
++  config = lib.mkIf cfg.enable {
++    assertions = [{
++      assertion = pkgs.stdenv.hostPlatform.isx86_64;
++      message = "me.gaming.enable needs an x86_64 machine because Steam is x86 only.";
++    }];
++
++    # Steam is unfree. Allow just the packages it needs.
++    nixpkgs.config.allowUnfreePredicate = pkg:
++      builtins.elem (lib.getName pkg) [
++        "steam"
++        "steam-original"
++        "steam-unwrapped"
++        "steam-run"
++      ];
++
++    # This also turns on 32-bit graphics, 32-bit audio and the udev rules for controllers.
++    programs.steam = {
++      enable = true;
++      # remotePlay.openFirewall = true;             # Steam Remote Play
++      # localNetworkGameTransfers.openFirewall = true;  # Copy games between PCs on your LAN
++    };
++
++    # In a game's Steam launch options use `gamemoderun %command%` or `gamescope -- %command%`.
++    programs.gamemode.enable = true;
++    programs.gamescope.enable = true;
++  };
++}
+diff --git a/modules/nixos/gui/default.nix b/modules/nixos/gui/default.nix
+deleted file mode 100644
+index 489b959..0000000
+--- a/modules/nixos/gui/default.nix
++++ /dev/null
+@@ -1,14 +0,0 @@
+-{
+-  imports = [
+-    ./gnome.nix
+-  ];
+-  services = {
+-    xserver = {
+-      enable = true;
+-      xkb.layout = "us";
+-    };
+-
+-    # Enable touchpad support (enabled default in most desktopManager).
+-    libinput.enable = true;
+-  };
+-}
+diff --git a/modules/nixos/gui/gnome.nix b/modules/nixos/gui/gnome.nix
+deleted file mode 100644
+index 8e95db2..0000000
+--- a/modules/nixos/gui/gnome.nix
++++ /dev/null
+@@ -1,9 +0,0 @@
+-{ pkgs, ... }:
+-{
+-  services.displayManager.gdm.enable = true;
+-  services.desktopManager.gnome.enable = true;
+-
+-  environment.systemPackages = with pkgs; [
+-    pkgs.gnome-tweaks
+-  ];
+-}
+diff --git a/modules/nixos/gui/sddm.nix b/modules/nixos/gui/sddm.nix
+deleted file mode 100644
+index 1ea42ab..0000000
+--- a/modules/nixos/gui/sddm.nix
++++ /dev/null
+@@ -1,7 +0,0 @@
+-{ ... }:
+-{
+-  services.displayManager.sddm = {
+-    enable = true;
+-    compositor = "niri";
+-  };
+-}
+-- 
+2.43.0
+
