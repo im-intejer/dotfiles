@@ -14,7 +14,7 @@
   boot.extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
   boot.blacklistedKernelModules = [ "b43" "bcma" "brcmsmac" "ssb" ];
   services.mbpfan.enable = true;
-  services.auto-cpufreq.enable = true;
+  # services.auto-cpufreq.enable = true;
     
     # FIX: bradcom_sta marked insecure
   nixpkgs.config.allowInsecurePredicate = pkg:

@@ -34,4 +34,6 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "No change since last commit"
 fi
 echo "Recranking..."
-nix run .#activate
+# nix run .#activate
+sudo nixos-rebuild switch --flake .#nixos
+

@@ -58,6 +58,8 @@ in
             keyboard.xkb.layout = "us";
             touchpad = {
               tap = true;
+              tap-button-map = "left-right-middle";
+              click-method = "button-areas";
               natural-scroll = true;
             };
           };
