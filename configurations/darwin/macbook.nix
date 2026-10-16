@@ -5,7 +5,7 @@
 #   2. The file name must match your Mac's host name, see `scutil --get LocalHostName`.
 #      Rename this file if they differ.
 #
-# The desktop (niri, DankMaterialShell) and Steam are Linux only, so there is nothing
+# The desktop (niri, Noctalia) and Steam are Linux only, so there is nothing
 # to switch on here. Your shell, git and editor setup still comes from /modules/home/*.
 { flake, ... }:
 let

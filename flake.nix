@@ -28,14 +28,18 @@
       url = "github:sodiboo/niri-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    dms = {
-      url = "github:AvengeMedia/DankMaterialShell";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    dank-greeter = {
-      url = "github:AvengeMedia/dank-greeter";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Deliberately no `inputs.nixpkgs.follows`. Following nixpkgs would make Nix compile
+    # noctalia locally, because the binary cache below only has builds against its own nixpkgs.
+    noctalia.url = "github:noctalia-dev/noctalia";
+  };
+
+  # Pre-built noctalia binaries. Nix only honors this when you pass --accept-flake-config
+  # (or are a trusted user). The NixOS config also installs it system-wide after the first switch.
+  nixConfig = {
+    extra-substituters = [ "https://noctalia.cachix.org" ];
+    extra-trusted-public-keys = [
+      "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+    ];
   };
 
   # Everything under configurations/ and modules/ is wired up automatically.

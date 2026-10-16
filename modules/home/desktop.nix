@@ -1,4 +1,4 @@
-# The per-user side of the desktop, niri (compositor) plus DankMaterialShell (bar, launcher,
+# The per-user side of the desktop, niri (compositor) plus Noctalia (bar, launcher,
 # notifications, lock screen). It is switched on by `me.desktop.enable`.
 #
 # Two situations are handled.
@@ -17,6 +17,10 @@ let
 
   terminal = lib.getExe config.programs.kitty.package;
 
+  # Runs a Noctalia IPC command, for example `noctalia "panel-toggle launcher"`.
+  # The full path means keys keep working even if the user profile is not on niri's PATH.
+  noctalia = cmd: { spawn-sh = "${lib.getExe config.programs.noctalia.package} msg ${cmd}"; };
+
   # Mod+1..9 jumps to a workspace, Mod+Shift+1..9 sends the current column there.
   workspaceBinds = lib.listToAttrs (lib.concatMap
     (n: [
@@ -29,15 +33,14 @@ in
   # These only declare options. Nothing happens until cfg.enable is true.
   imports = [
     inputs.niri.homeModules.niri
-    inputs.dms.homeModules.dank-material-shell
-    inputs.dms.homeModules.niri
+    inputs.noctalia.homeModules.default
   ];
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
     {
       assertions = [{
         assertion = pkgs.stdenv.hostPlatform.isLinux;
-        message = "me.desktop.enable needs Linux. niri and DankMaterialShell do not run on macOS.";
+        message = "me.desktop.enable needs Linux. niri and Noctalia do not run on macOS.";
       }];
     }
 
@@ -74,13 +77,38 @@ in
             ];
           };
 
+          # Noctalia's settings window opens as a floating window, as its docs recommend.
+          window-rules = [{
+            matches = [{ app-id = "dev.noctalia.Noctalia"; }];
+            open-floating = true;
+            default-column-width.fixed = 1080;
+            default-window-height.fixed = 920;
+          }];
+
+          # Lets Noctalia activate windows and notification actions.
+          debug.honor-xdg-activation-with-invalid-serial = [ ];
+
           # Lets X11 apps such as Steam run. niri starts it on demand.
           xwayland-satellite.path = lib.getExe pkgs.xwayland-satellite;
 
-          # Keys for the shell itself (Mod+Space launcher, Mod+N notifications, Mod+X power menu,
-          # volume, brightness and so on) come from programs.dank-material-shell.niri below.
           # Mod is the Super key. Run `niri msg action` for the full list of actions.
           binds = {
+            # Noctalia. Run `noctalia msg --help` for every command.
+            "Mod+Space" = {
+              action = noctalia "panel-toggle launcher";
+              hotkey-overlay.title = "App launcher";
+            };
+            "Mod+S".action = noctalia "panel-toggle control-center";
+            "Mod+V".action = noctalia "panel-toggle clipboard";
+            "Mod+X".action = noctalia "panel-toggle session";
+            "Mod+Comma".action = noctalia "settings-toggle";
+            "Mod+Alt+L".action = noctalia "session lock";
+            "XF86AudioRaiseVolume" = { action = noctalia "volume-up"; allow-when-locked = true; };
+            "XF86AudioLowerVolume" = { action = noctalia "volume-down"; allow-when-locked = true; };
+            "XF86AudioMute" = { action = noctalia "volume-mute"; allow-when-locked = true; };
+            "XF86MonBrightnessUp" = { action = noctalia "brightness-up"; allow-when-locked = true; };
+            "XF86MonBrightnessDown" = { action = noctalia "brightness-down"; allow-when-locked = true; };
+
             "Mod+Shift+Slash" = {
               action.show-hotkey-overlay = [ ];
               hotkey-overlay.title = "Show these shortcuts";
@@ -141,20 +169,22 @@ in
       };
 
       # Shell
-      programs.dank-material-shell = {
+      programs.noctalia = {
         enable = true;
         # Start the shell with the graphical session.
         systemd.enable = true;
-        niri = {
-          # Declare the shell's keys here so they work on first login.
-          enableKeybinds = true;
-          # The alternative is to let DankMaterialShell write ~/.config/niri/dms/*.kdl at runtime.
-          # Pick one of the two. Using both is not recommended.
-          includes.enable = false;
+        # Anything left out keeps Noctalia's default. The file is checked when you build, and
+        # every setting is documented in the example.toml in the noctalia repo.
+        # Changes made in the shell's settings window (Mod+Comma) persist on top of this.
+        settings = {
+          shell = {
+            font_family = "Inter";
+            # Show authentication prompts, for example when mounting a drive.
+            polkit_agent = true;
+          };
+          # theme = { mode = "dark"; source = "builtin"; builtin = "Nord"; };
+          # bar.main.position = "top";
         };
-        # Appearance and behaviour can also be set declaratively, for example
-        #   settings.theme = "...";
-        # Otherwise change them in the shell's settings (Mod+Comma) and they persist as usual.
       };
 
       # Apps and helpers the desktop expects.
@@ -162,7 +192,7 @@ in
       programs.firefox.enable = true;
       home.packages = [ pkgs.wl-clipboard ]
         # On NixOS these come from the system, on other Linux the user profile has to bring them.
-        ++ lib.optionals (!onSystem) (with pkgs; [ inter fira-code material-symbols ]);
+        ++ lib.optionals (!onSystem) [ pkgs.inter ];
       fonts.fontconfig.enable = lib.mkIf (!onSystem) true;
 
       home.sessionVariables.NIXOS_OZONE_WL = "1";

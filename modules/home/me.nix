@@ -19,7 +19,7 @@
       description = "The default shell for this user";
     };
     desktop.enable = lib.mkEnableOption ''
-      the niri and DankMaterialShell desktop for this user (Linux only).
+      the niri and Noctalia desktop for this user (Linux only).
       On NixOS this is switched on for you by `me.desktop.enable` in the host file
     '';
   };

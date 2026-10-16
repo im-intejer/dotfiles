@@ -6,7 +6,7 @@ One flake that configures a full NixOS desktop, a Mac, or any other Linux or mac
 
 | Where | What |
 | --- | --- |
-| NixOS | greetd login screen with the DankMaterialShell greeter, niri (Wayland), DankMaterialShell, Steam |
+| NixOS | greetd login screen with the Noctalia greeter, niri (Wayland), Noctalia shell, Steam |
 | macOS | nix-darwin plus your shell, git and editor setup |
 | Any other OS | Home Manager only, with your shell, git and editor setup. The desktop is optional on Linux |
 
@@ -30,7 +30,7 @@ The switches live in two places.
 
 | Switch | Set in | Effect |
 | --- | --- | --- |
-| `me.desktop.enable` | NixOS host file, or the home file on other Linux | niri, DankMaterialShell and (on NixOS) the login screen |
+| `me.desktop.enable` | NixOS host file, or the home file on other Linux | niri, Noctalia and (on NixOS) the login screen |
 | `me.gaming.enable` | NixOS host file | Steam, gamemode and gamescope |
 
 On NixOS, `me.desktop.enable` also turns on the matching per-user setup, so there is one switch to flip.
@@ -49,7 +49,7 @@ sudo nixos-rebuild switch --flake .#nixos
 just run
 ```
 
-Log in through the new greeter and pick the niri session. Press `Mod+Space` for the launcher, `Mod+T` for a terminal and `Mod+Shift+/` for the full shortcut list. `Mod` is the Super key.
+Log in through the new greeter and pick the niri session. Press `Mod+Space` for the launcher, `Mod+S` for the control center, `Mod+T` for a terminal and `Mod+Shift+/` for the full shortcut list. `Mod` is the Super key.
 
 Steam is in the launcher. It needs X11, which niri provides through `xwayland-satellite`. That is already set up.
 
@@ -76,7 +76,7 @@ nix run .#activate -- $USER@localhost
 
 This applies `configurations/home/$USER.nix` only. It installs your CLI tools and dotfiles and touches nothing system wide.
 
-To get niri and DankMaterialShell on another Linux distribution, add `desktop.enable = true;` in the `me` block of your home file. This is best effort. You still need to
+To get niri and Noctalia on another Linux distribution, add `desktop.enable = true;` in the `me` block of your home file. This is best effort. You still need to
 
 1. Add a Wayland session that runs `niri-session` to your login manager.
 2. Follow the GPU driver setup steps that Home Manager prints during activation, if it asks for them.
@@ -93,7 +93,7 @@ A new package for every machine. Add it to `modules/home/packages.nix`. Desktop 
 
 ## Customising the desktop
 
-Keybinds, layout and input settings are in `modules/home/desktop.nix` under `programs.niri.settings`. The shell's own shortcuts come from DankMaterialShell. Its appearance can be changed from its settings panel (`Mod+Comma`), and the choices persist. The login screen picks up your shell theme and wallpaper from your home folder.
+Keybinds, layout and input settings are in `modules/home/desktop.nix` under `programs.niri.settings`. The shell's shortcuts are declared in the same place and call `noctalia msg ...`. Run `noctalia msg --help` for every command. Shell settings live under `programs.noctalia.settings` in TOML form, see `example.toml` in the noctalia repo for all keys. Changes made in the shell's own settings window (`Mod+Comma`) persist on top of that. The login screen is a separate program with its own theme, and Noctalia's docs explain how to sync the two.
 
 ## Updating
 
@@ -102,10 +102,10 @@ just update    # refresh flake.lock
 just run       # apply
 ```
 
-Run `nix flake update` after pulling a change that adds inputs. DankMaterialShell follows current nixpkgs closely, so keep `nixpkgs` reasonably fresh.
+Run `nix flake update` after pulling a change that adds inputs. The first build after adding Noctalia is much faster with its binary cache, so pass `--accept-flake-config` once, for example `sudo nixos-rebuild boot --flake .#nixos --accept-flake-config`. The NixOS config then enables the cache permanently.
 
 ## Troubleshooting
 
-If the screen stays black after login, switch to a text console with `Ctrl+Alt+F2` and run `journalctl --user -u dms -b` and `journalctl -b -u greetd`.
+If the screen stays black after login, switch to a text console with `Ctrl+Alt+F2` and run `journalctl --user -u noctalia -b` and `journalctl -b -u greetd`.
 
-If `me.desktop.enable` fails on a Mac, that is intended. niri and DankMaterialShell are Linux only.
+If `me.desktop.enable` fails on a Mac, that is intended. niri and Noctalia are Linux only.
