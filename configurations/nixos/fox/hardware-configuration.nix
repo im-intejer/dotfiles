@@ -13,7 +13,7 @@
   boot.kernelModules = [ "kvm-intel" "wl" "applesmc" "coretemp" ];
   boot.extraModulePackages = [ config.boot.kernelPackages.broadcom_sta ];
   boot.blacklistedKernelModules = [ "b43" "bcma" "brcmsmac" "ssb" ];
-  services.mbpfan.enable = true;
+  services.mbpfan = {enable = true; aggressive = true;};
   # services.auto-cpufreq.enable = true;
     
     # FIX: bradcom_sta marked insecure

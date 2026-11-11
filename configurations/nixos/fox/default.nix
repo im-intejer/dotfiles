@@ -1,6 +1,9 @@
-# The NixOS machine called "nixos". Apply it with `just run` or `sudo nixos-rebuild switch --flake .#nixos`
-#
-# Reusable settings live in /modules/nixos/. Only what is specific to this machine goes here.
+# Apply this config with `just run` or `sudo nixos-rebuild switch --flake .#fox`
+
+# Fox is a 2017 Macbook Air running NixOS.
+# CPU: Intel i5-5350U @ 1.7Ghz
+# 8 GB RAM | 512 GB SSD (256 GB dedicated to NixOS)
+ 
 { flake, ... }:
 let
   inherit (flake) inputs;

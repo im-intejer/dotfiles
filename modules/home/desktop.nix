@@ -80,7 +80,7 @@ in
           # Noctalia's settings window opens as a floating window, as its docs recommend.
           window-rules = [{
             matches = [{ app-id = "dev.noctalia.Noctalia"; }];
-            open-floating = true;
+            open-floating = false;
             default-column-width.fixed = 1080;
             default-window-height.fixed = 920;
           }];

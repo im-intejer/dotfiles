@@ -15,7 +15,7 @@
   };
 
   networking = {
-    hostName = "nixos";
+    hostName = "fox";
     networkmanager = {
       enable = true;
       wifi = {
