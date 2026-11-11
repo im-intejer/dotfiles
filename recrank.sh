@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 commit_all() {
   git commit -a
   git push  
@@ -34,6 +35,10 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "No change since last commit"
 fi
 echo "Recranking..."
-# nix run .#activate
-sudo nixos-rebuild switch --flake .#nixos
+
+
+MACHINE="${1:-$HOSTNAME}"
+
+# Rebuild the configuration for the target machine
+sudo nixos-rebuild switch --flake ".#${MACHINE}"
 

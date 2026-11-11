@@ -16,9 +16,6 @@
     gnumake
     less # Needed for the `man home-configuration.nix` pager on Ubuntu
     gh
-
-    # Editor
-    helix
   ];
 
   # Programs with a Home Manager module can be set up under `programs.*`.
