@@ -1,5 +1,0 @@
-input {
-	touchpad {
-		click-method "button-areas"
-	}
-}
