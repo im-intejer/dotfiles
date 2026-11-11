@@ -7,7 +7,7 @@
 { ... }:
 {
   imports = [
-    ./common
+    ../common
     ./desktop.nix
     ./gaming.nix
   ];
