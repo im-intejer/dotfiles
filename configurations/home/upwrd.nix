@@ -13,6 +13,8 @@ in
     self.homeModules.default
   ];
 
+  home-manager.backupFileExtension = "backup";
+
   # Options defined by /modules/home/me.nix and used all around /modules/home/*
   me = {
     username = "upwrd";
