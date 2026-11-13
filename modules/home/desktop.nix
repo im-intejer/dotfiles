@@ -184,6 +184,7 @@ in
           };
 
           theme =  {
+            terminal_colors = "standard";
             templates = {enable_builtin_templates = true; builtin_ids = ["niri" "gtk3" "gtk4" "qt" "kitty" "helix" "btop"];};
           };
           # theme = { mode = "dark"; source = "builtin"; builtin = "Nord"; };
