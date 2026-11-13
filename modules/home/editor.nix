@@ -4,7 +4,8 @@
     enable = true;
     defaultEditor = true;
     settings = {
-      theme = "gruvbox-material";
+      # theme = "gruvbox-material";
+      theme = "noctalia";
 
       keys.normal.space.i = ":toggle lsp.display-inlay-hints";
 
