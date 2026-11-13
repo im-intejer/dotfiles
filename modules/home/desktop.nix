@@ -182,13 +182,22 @@ in
             # Show authentication prompts, for example when mounting a drive.
             polkit_agent = true;
           };
+
+          theme =  {
+            templates = {enable_builtin_templates = true; builtin_ids = ["niri" "gtk3" "gtk4" "qt" "kitty" "helix" "btop"];};
+          };
           # theme = { mode = "dark"; source = "builtin"; builtin = "Nord"; };
           # bar.main.position = "top";
         };
       };
+programs.kitty = {
 
       # Apps and helpers the desktop expects.
-      programs.kitty.enable = true;
+      enable = true;
+      extraConfig = ''
+        include themes/noctalia.conf
+      '';
+};
       programs.firefox.enable = true;
       home.packages = [ pkgs.wl-clipboard ]
         # On NixOS these come from the system, on other Linux the user profile has to bring them.
