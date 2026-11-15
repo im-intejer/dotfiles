@@ -15,7 +15,10 @@
 
   networking = {
     hostName = "coyote";
-    networkmanager.enable = true;
+    networkmanager = {
+      enable = true;
+      wifi.powersave = false;
+    };
   };
 
   time.timeZone = "America/Chicago";
@@ -24,16 +27,21 @@
 
   # The account itself comes from `myusers`.
   users.users.upwrd = {
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+    ];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP8F0zWwhg4pmbR7m9NuiJIttD00J9QiSxJ8ps0/0W7u upwrd@fox"
     ];
   };
-
-  environment.systemPackages = with pkgs; [
-    vim
-    git
-  ];
+  environment = {
+    systemPackages = with pkgs; [
+      vim
+      git
+      kitty.terminfo
+    ];
+  };
 
   # Key only login. Port 22 is opened once, here, for the LAN. Tailscale traffic is
   # already allowed through its trusted interface, so SSH also works over the tailnet.

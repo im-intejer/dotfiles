@@ -35,3 +35,15 @@ check:
 [group('dev')]
 dev:
   nix develop
+
+# Build here, then test-activate on a remote NixOS host. Does not change the boot default,
+# so a power cycle returns the host to its last good generation.
+[group('Main')]
+deploy-test host user="upwrd":
+  nixos-rebuild test --flake .#{{host}} --target-host {{user}}@{{host}} --sudo --ask-elevate-password
+
+# Build here and switch a remote NixOS host to the new configuration permanently
+[group('Main')]
+deploy host user="upwrd":
+  nixos-rebuild switch --flake .#{{host}} --target-host {{user}}@{{host}} --sudo --ask-elevate-password
+
