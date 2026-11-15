@@ -4,6 +4,10 @@
     settings.dns = {
       upstreams = [ "1.1.1.1" "9.9.9.9" ];
       listeningMode = "ALL";
+      rateLimit = {
+        count = 20000;
+        interval = 60;
+      };
     };
     lists = [
       {
