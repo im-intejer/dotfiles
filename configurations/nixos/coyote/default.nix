@@ -17,6 +17,6 @@ in
   myusers = [ "upwrd" ];
 
   # Feature switches
-  me.desktop.enable = true; # niri + Noctalia + graphical login screen
-  me.gaming.enable = true; # Steam
+  me.desktop.enable = false; # niri + Noctalia + graphical login screen
+  me.gaming.enable = false; # Steam
 }
