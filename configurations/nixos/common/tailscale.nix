@@ -1,8 +1,7 @@
 { config, pkgs, ... }: {
   services.tailscale = {
     enable = true;
-    useRoutingFeatures = "server";
-    extraSetFlags = [ "--advertise-exit-node" ];
+    extraSetFlags = [ "--accept-dns-false" ];
   };
 
   networking = {

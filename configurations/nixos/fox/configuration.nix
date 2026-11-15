@@ -6,6 +6,7 @@
   imports = [
     ./hardware-configuration.nix
     ../common/tailscale.nix
+    ./dnsmasq.nix
      ];
 
   # UEFI boot loader

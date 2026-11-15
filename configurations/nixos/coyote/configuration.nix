@@ -6,6 +6,7 @@
   imports = [
     ./hardware-configuration.nix
     ../common/tailscale.nix
+    ./pihole.nix
   ];
 
   boot.loader = {
@@ -19,6 +20,11 @@
       enable = true;
       wifi.powersave = false;
     };
+  };
+
+  services.tailscale = {
+    useRoutingFeatures = "server";
+    extraSetFlags = [ "--advertise-exit-node" "--accept-dns=false"];
   };
 
   time.timeZone = "America/Chicago";
