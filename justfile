@@ -11,6 +11,16 @@ default:
 update:
   nix flake update
 
+# Apply the configuration of this machine (NixOS or macOS)
+[group('Main')]
+run:
+  nix run
+
+# Apply only the Home Manager config, for use as a package manager on any OS
+[group('Main')]
+home:
+  nix run .#activate -- $USER@localhost
+
 # Lint nix files
 [group('dev')]
 lint:
@@ -26,7 +36,14 @@ check:
 dev:
   nix develop
 
-# Activate the configuration
+# Build here, then test-activate on a remote NixOS host. Does not change the boot default,
+# so a power cycle returns the host to its last good generation.
 [group('Main')]
-run:
-  nix run
+deploy-test host user="upwrd":
+  nixos-rebuild test --flake .#{{host}} --target-host {{user}}@{{host}} --sudo --ask-elevate-password
+
+# Build here and switch a remote NixOS host to the new configuration permanently
+[group('Main')]
+deploy host user="upwrd":
+  nixos-rebuild switch --flake .#{{host}} --target-host {{user}}@{{host}} --sudo --ask-elevate-password
+

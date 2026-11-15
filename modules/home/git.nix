@@ -10,6 +10,8 @@
     git = {
       enable = true;
       ignores = [ "*~" "*.swp" ];
+      # Commits are not signed. Setting this also silences a warning about the changed default.
+      signing.format = null;
       settings = {
         user.name = config.me.fullname;
         user.email = config.me.email;
@@ -20,5 +22,4 @@
     };
     lazygit.enable = true;
   };
-
 }
