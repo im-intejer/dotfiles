@@ -20,8 +20,6 @@ in
     email = "lukendavis7@gmail.com";
     shell = pkgs.zsh;
 
-    # Standalone Linux only. On NixOS the host file decides, on macOS it does not apply.
-    # desktop.enable = true;
   };
 
   home.backupFileExtension = "backup";
