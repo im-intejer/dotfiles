@@ -5,7 +5,8 @@
     defaultEditor = true;
     settings = {
       # theme = "gruvbox-material";
-      theme = "noctalia";
+      # The noctalia theme file only exists when the desktop is on.
+      theme = if config.me.desktop.enable then "noctalia" else "gruvbox";
 
       keys.normal.space.i = ":toggle lsp.display-inlay-hints";
 

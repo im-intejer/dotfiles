@@ -19,4 +19,5 @@ in
   # Feature switches
   me.desktop.enable = false; # niri + Noctalia + graphical login screen
   me.gaming.enable = false; # Steam
+  me.server.enable = true; # watchdog, no sleep, GC, SMART
 }
