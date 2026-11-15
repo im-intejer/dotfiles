@@ -51,6 +51,8 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users."upwrd" = {
     extraGroups = [ "networkmanager" "wheel" ];
+
+    openssh.authorizedKeys.keys = [ "ssh=ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP8F0zWwhg4pmbR7m9NuiJIttD00J9QiSxJ8ps0/0W7u upwrd@fox  " ];
   };
 
   # Allow unfree packages
