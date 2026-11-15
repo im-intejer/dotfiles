@@ -3,7 +3,10 @@
 # Options are documented in configuration.nix(5) and at https://search.nixos.org/options
 { pkgs, ... }:
 {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [
+    ./hardware-configuration.nix
+    ../common/tailscale.nix
+     ];
 
   # UEFI boot loader
   boot.loader = {
